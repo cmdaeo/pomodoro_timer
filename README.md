@@ -1,4 +1,4 @@
-# Pomodoro Timer
+# Yet Another Pomodoro Timer
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).  
 A simple and customizable Pomodoro Timer to help you boost productivity using the Pomodoro Technique.
@@ -7,8 +7,9 @@ A simple and customizable Pomodoro Timer to help you boost productivity using th
 
 - Customizable work and break intervals
 - Responsive design
-- Fast, modern Next.js app
-- Easy to deploy
+- Simple UI
+- Notifications and sound reminders
+- Floating Timer Overlay (Picture-in-Picture Mode)
 
 ## Getting Started
 
