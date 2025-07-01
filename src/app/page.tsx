@@ -87,7 +87,7 @@ const PomodoroTimer = () => {
   useEffect(() => {
     const createBeepSound = () => {
       try {
-        const audioContext = new ((window.AudioContext || (window as any).webkitAudioContext) as typeof window.AudioContext)();
+        const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         
@@ -103,14 +103,14 @@ const PomodoroTimer = () => {
         
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
-      } catch (e) {
+      } catch {
         console.log('Audio not available');
       }
     };
 
     const createTickSound = () => {
       try {
-        const audioContext = new ((window.AudioContext || (window as any).webkitAudioContext) as typeof window.AudioContext)();
+        const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         
@@ -125,7 +125,7 @@ const PomodoroTimer = () => {
         
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.1);
-      } catch (e) {
+      } catch {
         console.log('Audio not available');
       }
     };
@@ -285,6 +285,50 @@ const PomodoroTimer = () => {
   }, [timeLeft, isRunning, mode, sessionCount, settings, isDarkMode]);
 
   // Timer logic
+  const showNotification = React.useCallback(() => {
+    if (settings.notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+      const title = mode === 'focus' ? 'Break Time!' : 'Focus Time!';
+      const body = mode === 'focus' 
+        ? (sessionCount + 1) % settings.sessionsUntilLongBreak === 0 
+          ? 'Take a long break and recharge!' 
+          : 'Take a short break!'
+        : 'Ready for your next focus session?';
+      
+      new Notification(title, {
+        body,
+        icon: '🍅',
+        tag: 'pomodoro'
+      });
+    }
+  }, [settings.notificationsEnabled, mode, sessionCount, settings.sessionsUntilLongBreak]);
+
+  const handleTimerComplete = React.useCallback(() => {
+    if (mode === 'focus') {
+      const newSessionCount = sessionCount + 1;
+      setSessionCount(newSessionCount);
+      
+      if (newSessionCount % settings.sessionsUntilLongBreak === 0) {
+        setMode('longBreak');
+        setTimeLeft(settings.longBreak * 60);
+        if (settings.autoStartBreaks) {
+          setTimeout(() => setIsRunning(true), 1000);
+        }
+      } else {
+        setMode('shortBreak');
+        setTimeLeft(settings.shortBreak * 60);
+        if (settings.autoStartBreaks) {
+          setTimeout(() => setIsRunning(true), 1000);
+        }
+      }
+    } else {
+      setMode('focus');
+      setTimeLeft(settings.focusTime * 60);
+      if (settings.autoStartFocus) {
+        setTimeout(() => setIsRunning(true), 1000);
+      }
+    }
+  }, [mode, sessionCount, settings.longBreak, settings.shortBreak, settings.focusTime, settings.sessionsUntilLongBreak, settings.autoStartBreaks, settings.autoStartFocus]);
+
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
       intervalRef.current = setInterval(() => {
@@ -312,51 +356,7 @@ const PomodoroTimer = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, timeLeft, settings.soundEnabled, settings.tickSound]);
-
-  const showNotification = () => {
-    if (settings.notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
-      const title = mode === 'focus' ? 'Break Time!' : 'Focus Time!';
-      const body = mode === 'focus' 
-        ? (sessionCount + 1) % settings.sessionsUntilLongBreak === 0 
-          ? 'Take a long break and recharge!' 
-          : 'Take a short break!'
-        : 'Ready for your next focus session?';
-      
-      new Notification(title, {
-        body,
-        icon: '🍅',
-        tag: 'pomodoro'
-      });
-    }
-  };
-
-  const handleTimerComplete = () => {
-    if (mode === 'focus') {
-      const newSessionCount = sessionCount + 1;
-      setSessionCount(newSessionCount);
-      
-      if (newSessionCount % settings.sessionsUntilLongBreak === 0) {
-        setMode('longBreak');
-        setTimeLeft(settings.longBreak * 60);
-        if (settings.autoStartBreaks) {
-          setTimeout(() => setIsRunning(true), 1000);
-        }
-      } else {
-        setMode('shortBreak');
-        setTimeLeft(settings.shortBreak * 60);
-        if (settings.autoStartBreaks) {
-          setTimeout(() => setIsRunning(true), 1000);
-        }
-      }
-    } else {
-      setMode('focus');
-      setTimeLeft(settings.focusTime * 60);
-      if (settings.autoStartFocus) {
-        setTimeout(() => setIsRunning(true), 1000);
-      }
-    }
-  };
+  }, [isRunning, timeLeft, settings.soundEnabled, settings.tickSound, showNotification, handleTimerComplete]);
 
   const startTimer = () => setIsRunning(true);
   const pauseTimer = () => setIsRunning(false);
@@ -421,7 +421,6 @@ const PomodoroTimer = () => {
     }
   };
 
-  const themeClasses = isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-800';
   const cardClasses = isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200';
 
   return (
@@ -587,11 +586,11 @@ const SettingsForm: React.FC<{
     onSave(formData);
   };
 
-  const handleChange = (field: keyof Settings, value: any) => {
+  const handleChange = (field: keyof Settings, value: string | number | boolean) => {
     if (field === 'focusTime' || field === 'shortBreak' || field === 'longBreak' || field === 'sessionsUntilLongBreak') {
       setFormData((prev: Settings) => ({
         ...prev,
-        [field]: parseInt(value) || 1
+        [field]: parseInt(value as string) || 1
       }));
     } else {
       setFormData((prev: Settings) => ({
@@ -622,7 +621,7 @@ const SettingsForm: React.FC<{
               min="1"
               max="60"
               value={formData.focusTime}
-              onChange={(e) => handleChange('focusTime', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('focusTime', e.target.value)}
               className={inputClasses}
             />
           </div>
@@ -634,7 +633,7 @@ const SettingsForm: React.FC<{
               min="1"
               max="30"
               value={formData.shortBreak}
-              onChange={(e) => handleChange('shortBreak', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('shortBreak', e.target.value)}
               className={inputClasses}
             />
           </div>
@@ -646,7 +645,7 @@ const SettingsForm: React.FC<{
               min="1"
               max="60"
               value={formData.longBreak}
-              onChange={(e) => handleChange('longBreak', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('longBreak', e.target.value)}
               className={inputClasses}
             />
           </div>
@@ -658,7 +657,7 @@ const SettingsForm: React.FC<{
               min="2"
               max="8"
               value={formData.sessionsUntilLongBreak}
-              onChange={(e) => handleChange('sessionsUntilLongBreak', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('sessionsUntilLongBreak', e.target.value)}
               className={inputClasses}
             />
           </div>
